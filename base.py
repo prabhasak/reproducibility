@@ -215,49 +215,50 @@ if __name__=='__main__':
         return env
     
     env = create_env(n_envs)
+    
+    if args.train_RL_model:
+        callbacks = []
+        if args.save_freq_RL > 0:
+            # Account for the number of parallel environments
+            args.save_freq = max(args.save_freq_RL // n_envs, 1)
+            callbacks.append(CheckpointCallback(save_freq=args.save_freq,
+                                                save_path=path_callback_RL+'{}_{}_v{}'.format(*params_save_RL), name_prefix='rl_model', verbose=1))
 
-    callbacks = []
-    if args.save_freq_RL > 0:
-        # Account for the number of parallel environments
-        args.save_freq = max(args.save_freq_RL // n_envs, 1)
-        callbacks.append(CheckpointCallback(save_freq=args.save_freq,
-                                            save_path=path_callback_RL+'{}_{}_v{}'.format(*params_save_RL), name_prefix='rl_model', verbose=1))
+        # Create test env if needed, do not normalize reward
+        # eval_env = None
+        if args.eval_freq_RL > 0:
+            # Account for the number of parallel environments
+            args.eval_freq = max(args.eval_freq_RL // n_envs, 1)
 
-    # Create test env if needed, do not normalize reward
-    # eval_env = None
-    if args.eval_freq_RL > 0:
-        # Account for the number of parallel environments
-        args.eval_freq = max(args.eval_freq_RL // n_envs, 1)
+            if args.rew_threshold:
+                callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=env_success[env_index], verbose=1)
+                callbacks.append(EvalCallback(create_env(1, eval_env=True), best_model_save_path=path_callback_RL+"{}_{}_v{}".format(*params_save_RL),
+                                            log_path=path_callback_RL+"{}_{}_v{}".format(*params_save_RL), eval_freq=args.eval_freq, callback_on_new_best=callback_on_best, verbose=1))
+            else:
+                callbacks.append(EvalCallback(create_env(1, eval_env=True), best_model_save_path=path_callback_RL+"{}_{}_v{}".format(*params_save_RL),
+                                                    log_path=path_callback_RL+"{}_{}_v{}".format(*params_save_RL), eval_freq=args.eval_freq, verbose=1))
 
-        if args.rew_threshold:
-            callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=env_success[env_index], verbose=1)
-            callbacks.append(EvalCallback(create_env(1, eval_env=True), best_model_save_path=path_callback_RL+"{}_{}_v{}".format(*params_save_RL),
-                                        log_path=path_callback_RL+"{}_{}_v{}".format(*params_save_RL), eval_freq=args.eval_freq, callback_on_new_best=callback_on_best, verbose=1))
-        else:
-            callbacks.append(EvalCallback(create_env(1, eval_env=True), best_model_save_path=path_callback_RL+"{}_{}_v{}".format(*params_save_RL),
-                                                log_path=path_callback_RL+"{}_{}_v{}".format(*params_save_RL), eval_freq=args.eval_freq, verbose=1))
+        kwargs = {}
+        if args.log_interval > -1:
+            kwargs = {'log_interval': args.log_interval}
+        if len(callbacks) > 0:
+            kwargs['callback'] = callbacks
 
-    kwargs = {}
-    if args.log_interval > -1:
-        kwargs = {'log_interval': args.log_interval}
-    if len(callbacks) > 0:
-        kwargs['callback'] = callbacks
+        # env = gym.make(env_id, **env_kwargs)
+        # env.seed(args.seed)
 
-    # env = gym.make(env_id, **env_kwargs)
-    # env.seed(args.seed)
+        model = (algo_list[args.algo])(env=env, seed=args.seed, n_cpu_tf_sess=1, **tensorboard_RL, verbose=args.verbose, **hyperparams)
+        print('\nTraining {} on {} now... \n'.format(algo, env_id))
+        model.learn(total_timesteps=n_timesteps, **kwargs)
+        model_new = model.load(path_callback_RL+"{}_{}_v{}".format(*params_save_RL)+'/best_model')
 
-    model = (algo_list[args.algo])(env=env, seed=args.seed, n_cpu_tf_sess=1, **tensorboard_RL, verbose=args.verbose, **hyperparams)
-    print('\nTraining {} on {} now... \n'.format(algo, env_id))
-    model.learn(total_timesteps=n_timesteps, **kwargs)
-    model_new = model.load(path_callback_RL+"{}_{}_v{}".format(*params_save_RL)+'/best_model')
-
-    eval_episode_reward, eval_episode_len = evaluate_policy(model, env, n_eval_episodes=args.n_eval_episodes, return_episode_rewards=True)
-    print('\nMean return: ', np.mean(eval_episode_reward))
-    print('Std return: ', np.std(eval_episode_reward))
-    print('Max return: ', max(eval_episode_reward))
-    print('Min return: ', min(eval_episode_reward))
-    print('Mean episode len: ', np.rint(np.mean(eval_episode_len)))
-    eval_success_count = sum(i >= env_success[env_index] for i in eval_episode_reward)
-    print('{}/{} successful episodes'.format(eval_success_count, args.n_eval_episodes))
-    if np.mean(eval_episode_reward)>=env_success[env_index]:
-        print('\nTrained {} model successful on {} as per OpenAI Gym requirements!'.format(algo, env_id))
+        eval_episode_reward, eval_episode_len = evaluate_policy(model, env, n_eval_episodes=args.n_eval_episodes, return_episode_rewards=True)
+        print('\nMean return: ', np.mean(eval_episode_reward))
+        print('Std return: ', np.std(eval_episode_reward))
+        print('Max return: ', max(eval_episode_reward))
+        print('Min return: ', min(eval_episode_reward))
+        print('Mean episode len: ', np.rint(np.mean(eval_episode_len)))
+        eval_success_count = sum(i >= env_success[env_index] for i in eval_episode_reward)
+        print('{}/{} successful episodes'.format(eval_success_count, args.n_eval_episodes))
+        if np.mean(eval_episode_reward)>=env_success[env_index]:
+            print('\nTrained {} model successful on {} as per OpenAI Gym requirements!'.format(algo, env_id))
