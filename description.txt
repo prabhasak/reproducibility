@@ -1,0 +1,29 @@
+BASIC REINFORCEMENT LEARNING IMPLEMENTATION FROM STABLE BASELINES
+
+
+airsim_env: The AirSim-v0 OpenAI Gym env (install instructions at https://pypi.org/project/airsim/ and https://microsoft.github.io/AirSim/build_windows/)
+Location - same as imitation_learning_basic.py
+
+
+binaries: The AirSim binaries for AirSim-v0 (Windows, Linux). "Blocks.exe" must be open and needs to be detected for training AirSim-v0 (to access more Binary options, modify Documents/AirSim/settings.json accordingly. Description at https://microsoft.github.io/AirSim/settings/)
+
+
+callbacks: save model periodically (checkpoints) and evaluate model periodically (evalautions)
+
+
+experts: collection of .npz files. Note: AirSim-v0 expert data (generated from an optimal SAC policy). 1 -> 'simple' reward, 2 -> 'complex' reward (check __init__ of airsim_env_0.py in airsim_env for more info)
+
+
+logs: log files for airsim experiments (check __init__ of airsim_env_0.py in airsim_env for more info)
+logs/monitor: files from the Monitor wrapper
+
+models: collection of all trained RL models
+
+
+stable_baselines: The "stable_baselines" folder from the Stable Baselines 2.10 repo
+
+
+tensorboard: Tensorboard logs according to env_id. Multiple runs of an experiment will result in multiple logs, please make sure to keep track of the runs (exp_id helps)
+
+
+utils: to store the cmd line hyperparameters as a Dict
