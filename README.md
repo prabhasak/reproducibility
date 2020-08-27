@@ -28,10 +28,9 @@ pip install stable-baselines[mpi] # MPI needed for TRPO
 
 Usage
 -------------
-``python reproducibility.py --seed 42 --env Pendulum-v0 --algo sac -trl -RL 1e5 -til -GAIL 3e5 -params-RL learning_starts:1000 -params-IL lam:0.9 vf_iters:10``
+``python reproducibility.py --seed 42 --env Pendulum-v0 --algo sac -trl 1e5 -tb -check -eval -m -params learning_starts:1000``
 
-**Verify reproducibility:** (i) 71/100 successful experts with (mean, std) = (-145.37, 80.41) or (-150.43, 82.06), and 
-ii) 43/100 successful episodes on GAIL policy evaluation with (mean, std) = (-227.61, 147.36) or (-200.78, 109.21)
+**Verify reproducibility:** (i) 65/100 successful episodes on SAC policy evaluation, with (mean, std) = (-161.68, 86.39)
 
 Features
 -------------

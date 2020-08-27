@@ -3,8 +3,8 @@ Author: Prabhasa Kalkur
 
 - Note 1.0: choose {env, RL algo, training times, hyperparameters, etc} as cmd line arguments
 - Note 1.1: changeable numbers in the program:
-            callback model saving and evaluation = every 100 episodes for RL (line 232)
-            number of episodes used for policy evaluation after training = 100 (line 266)
+            callback model saving and evaluation = every 100 episodes for RL (line 252)
+            number of episodes used for policy evaluation after training = 100 (line 288)
 - Note 2: Things you can add on top: HP tuning, comparing consecutive runs of an experiment and retaining the better policy
 """
 
@@ -49,11 +49,13 @@ from utils import get_wrapper_class, linear_schedule, make_env, StoreDict
 from airsim_env.envs.airsim_env_0 import AirSim
 
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
+done_count, success_count, episode_reward, total_reward = 0, 0, 0, 0
 
 algo_list = {'sac': SAC, 'trpo': TRPO, 'acer': ACER, 'dqn': DQN, 'ppo2': PPO2,
             'ddpg': DDPG, 'a2c': A2C, 'acktr': ACKTR, 'her': HER, 'td3': TD3}
 env_list = ['Pendulum-v0', 'CartPole-v1', 'LunarLander-v2', 'LunarLanderContinuous-v2', 'MountainCarContinuous-v0', 'BipedalWalker-v3',
             'HalfCheetah-v2', 'Hopper-v2', 'Humanoid-v2', 'Ant-v2', 'Reacher-v2', 'Swimmer-v2', 'AirSim-v0'] # mujoco envs need license
+env_success = [-200, 475, 200, 200, 90, 300, 4800, 3000, 1000, 6000, 3.75, 360, 1000] # OpenAI Gym requirements (Hopper should be 3800)
 episode_len = [200, 500, 400, 400, 999, 1600, 1000, 1000, 1000, 1000, 50, 1000, 100]
 
 def get_args():
@@ -65,8 +67,9 @@ def get_args():
 
     parser.add_argument('--exp-id', help='Experiment ID', default=0, type=int)
     parser.add_argument('--verbose', help='Verbose mode (0: no output, 1: INFO)', default=0, type=int)
-    # parser.add_argument('-rl', '--train-RL', help='RL training done', action='store_true')
+    # parser.add_argument('-rl', '--train-RL', help='Train RL', action='store_true')
     parser.add_argument('-trl', '--timesteps-RL', help='Overwrite the number of timesteps for RL', default=-1, type=str)
+    parser.add_argument('--test', help='Test trained policy', action='store_true')
 
     parser.add_argument('-tb', '--tensorboard', help='For Tensorboard logging', action='store_true') # tensorboard
     parser.add_argument('-check', '--check-callback', help='For saving models every save_freq steps', action='store_true') # checkpoint-callback
@@ -77,9 +80,37 @@ def get_args():
 
     parser.add_argument('-params', '--hyperparams', type=str, nargs='+', action=StoreDict, help='Overwrite hyperparameter (e.g. learning_rate:0.01 train_freq:10)')
     parser.add_argument('--env-kwargs', type=str, nargs='+', action=StoreDict, help='Optional keyword argument to pass to the env constructor')
+    
     args = parser.parse_args()
-
     return args
+
+def evaluate(mode, quantity, env_id, env, algo, n_eval_episodes):
+    env_index = env_list.index(env_id)
+    if mode=='policy':
+        print('\nTrained {} with {}. Some stats:\n'.format(env_id, algo))
+        episode_return, episode_length = evaluate_policy(quantity, env, n_eval_episodes=n_eval_episodes, return_episode_rewards=True)
+        success_count = sum(i >= env_success[env_index] for i in episode_return)
+        success_criteria = episode_return
+    print('{}/{} successful episodes\n'.format(success_count, n_eval_episodes))
+    print('Mean return: ', np.mean(episode_return))
+    print('Std return: ', np.std(episode_return))
+    print('Max return: ', max(episode_return))
+    print('Min return: ', min(episode_return))
+    print('Mean episode len: ', np.rint(np.mean(episode_length)))
+    if np.mean(success_criteria) >= env_success[env_index]:
+        print('Optimal {} found!\n'.format(mode))
+    else:
+        print('Suboptimal {}. Please try again...'.format(mode))
+        sys.exit()
+
+def check_success(env_index, env_success, success_count):
+    if episode_reward>=env_success[env_index]:
+        success_count+=1
+        print('Test: Success!')
+    else:
+        print('Test: Fail!')
+        pass
+    return success_count
 
 def moving_average(values, window):
     # Smooth values by doing a moving average
@@ -120,18 +151,14 @@ def main():
     env_name = env_id[:-3]
     env_index = env_list.index(env_id)
 
-    # Pass CustomEnv arguments
-    airsim_success_reward = 500
-    if env_id in ['AirSim-v0']:
-        if (args.train_RL or (not args.generated_trajs)): #Note env_kwargs is also used for generating expert data
-            if args.env_kwargs is not None:
-                if 'rew_land' in args.env_kwargs:
-                    if (int(args.env_kwargs['rew_land']) in [500, 1000, 10000]):
-                        airsim_success_reward = int(args.env_kwargs['rew_land'])
-                    else:
-                        raise ValueError('Given env reward not acceptable. Please try again')
-
-    env_success = [-200, 475, 200, 200, 90, 300, 4800, 3000, 1000, 6000, 3.75, 360, airsim_success_reward] # OpenAI Gym requirements (Hopper should be 3800)
+    # Pass CustomEnv arguments: follow this for your CustomEnv if reward not known prior to training
+    env_kwargs = {} if args.env_kwargs is None else args.env_kwargs
+    if (args.env_kwargs is not None) and (env_id in ['AirSim-v0']):
+        if 'rew_land' in env_kwargs:
+            if (int(env_kwargs['rew_land']) in [500, 1000, 10000]):
+                env_success[-1] = int(env_kwargs['rew_land'])
+            else:
+                raise ValueError('Given env reward not acceptable. Please try again') 
 
     params = [exp_id, env_name.lower()]
     folder = [exp_id, env_name.lower(), args.algo.lower()]
@@ -198,8 +225,6 @@ def main():
     # if (algo=='ppo2' and ('learning_rate' in hyperparams.keys())):
     #     hyperparams['learning_rate'] = linear_schedule(hyperparams['learning_rate'])
         
-    env_kwargs = {} if args.env_kwargs is None else args.env_kwargs
-
     def create_env(n_envs, eval_env=False):
         if algo in ['a2c', 'acer', 'acktr', 'ppo2']:
             if n_envs > 1:
@@ -252,8 +277,7 @@ def main():
     else:
         print("Took {:.2f}s for single process version - {:.2f} FPS".format(total_time, n_timesteps / total_time))
 
-    env = DummyVecEnv([lambda: gym.make(env_id)])
-    env.seed(args.seed)
+    env = DummyVecEnv([make_env(env_id, 0, args.seed, env_kwargs=env_kwargs)])
     
     if args.normalize:
         env = VecNormalize.load(os.path.join(callback_path, "vec_normalize.pkl"), env)
@@ -261,22 +285,36 @@ def main():
         env.norm_reward = False
         env.seed(args.seed)
 
-    model_new = (algo_list[args.algo]).load(os.path.join(callback_path,'best_model'))
-    model_new.set_env(env)
-    eval_episode_reward, eval_episode_len = evaluate_policy(model_new, env, n_eval_episodes=100, return_episode_rewards=True)
-    print('\nMean return: ', np.mean(eval_episode_reward))
-    print('Std return: ', np.std(eval_episode_reward))
-    print('Max return: ', max(eval_episode_reward))
-    print('Min return: ', min(eval_episode_reward))
-    print('Mean episode len: ', np.rint(np.mean(eval_episode_len)))
-    eval_success_count = sum(i >= env_success[env_index] for i in eval_episode_reward)
-    print('{}/{} successful episodes'.format(eval_success_count, 100))
-    if np.mean(eval_episode_reward)>=env_success[env_index]:
-        print('\nTrained {} model successful on {} as per OpenAI Gym requirements!'.format(algo, env_id))
+    # Evaluate RL model - choose either best model or last available model
+    model = (algo_list[algo]).load(os.path.join(callback_path,'best_model'))
+    # model = (algo_list[algo]).load("models/{}_{}_{}".format(*folder))
+    model.set_env(env)    
+    evaluate('policy', model, env_id, env, algo, 100)
 
     if args.monitor:
         results_plotter.plot_results([monitor_path], n_timesteps, results_plotter.X_TIMESTEPS, "{} {}".format(algo, env_id))
         plot_results(monitor_path)
+    
+    if args.test:
+        print('\nTesting policy...\n')
+        obs = env.reset()
+        for _ in range(n_timesteps):
+            action, _states = model.predict(obs, deterministic=True)
+            if isinstance(env.action_space, gym.spaces.Box):
+                action = np.clip(action, env.action_space.low, env.action_space.high)
+            obs, rewards, dones, info = env.step(action)
+            episode_reward+=rewards
+            env.render()
+            if dones:
+                done_count+=1
+                success_count = check_success(env_index, env_success, success_count)
+                total_reward+=episode_reward
+                episode_reward = 0
+                env.reset()
+        print('\n{}/{} successful episodes'.format(success_count, done_count))
+        average_reward = total_reward/done_count
+        print('\nAverage reward: {}'.format(average_reward))
+        env.close()
 
 if __name__=='__main__':
     main()
