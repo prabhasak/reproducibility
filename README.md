@@ -1,10 +1,10 @@
 A Reinforcement Learning benchmark: Experiment Reproducibility
 ==========================
-**Objective:** Benchmark Reinforcement Learning algorithms from [Stable Baselines 2.10](https://stable-baselines.readthedocs.io/en/master/) on OpenAI Gym problems. The code focuses on verifying reproducibility of results with a fixed random seed
+**Objective:** Benchmark Reinforcement Learning (RL) algorithms from [Stable Baselines 2.10](https://stable-baselines.readthedocs.io/en/master/) on OpenAI Gym environments. The codebase focuses on verifying reproducibility of results on repeatign experiments with a fixed random seed (motivation: gave me a lot of trouble during my Thesis!). An extension of this work is available [here](https://github.com/prabhasak/masters-thesis).
 
-**Idea**: Pick your favourite [env, algo] pair -> **train RL** -> evaluate learned policy
+**Idea**: Pick your favourite (environment, RL algorithm) pair -> train RL on env's reward function & evaluate learned policy -> re-run experiment to verify if you get the same result. The idea is to achieve same performance on repeating the experiment (may not be the case with TRPO).
 
-**Framework, langauge, OS:** Tensorflow 1.14, Python 3.7, Windows 10
+**Framework, langauge, OS:** Tensorflow 1.14 (now bumped to 2.4.0), Python 3.7, Windows 10
 
 
 Prerequisites
@@ -18,17 +18,18 @@ conda activate myenv
 
 git clone https://github.com/prabhasak/reproducibilty.git
 cd reproducibility
-git clone https://github.com/araffin/rl-baselines-zoo
 pip install -r requirements.txt # recommended
-pip install stable-baselines[mpi] # MPI needed for TRPO
+pip install stable-baselines[mpi] # MPI needed for TRPO algorithm
 ```
 
-**For CustomEnvs:** [Register](https://medium.com/@apoddar573/making-your-own-custom-environment-in-gym-c3b65ff8cdaa) your CustomEnv on Gym ([examples](https://github.com/openai/gym/blob/master/gym/envs/__init__.py)), and add your custom env and/or algorithm details. You can use the "airsim_env" folder for reference
+**For CustomEnvs:** [Register](https://medium.com/@apoddar573/making-your-own-custom-environment-in-gym-c3b65ff8cdaa) your CustomEnv on Gym ([examples](https://github.com/openai/gym/blob/master/gym/envs/__init__.py)), and add your custom env and/or algorithm details. You can use the "airsim_env" folder for reference.
 
 
 Usage
 -------------
 ``python reproducibility.py --seed 42 --env Pendulum-v0 --algo sac -trl 1e5 -tb -check -eval -m -params learning_starts:1000``
+
+Here, I use a fixed random seed of 42 (the answer to life, universe and everything) to run the experiments. I choose the [Pendulum-v0](https://gym.openai.com/envs/Pendulum-v0/) environment and the Soft Actor-Critic ([SAC](https://arxiv.org/pdf/1801.01290.pdf)) algorithm to learn a model from the [reward](https://github.com/openai/gym/wiki/Pendulum-v0#reward). SAC is trained for 100,000 steps with the tuned hyperparameters from the ``hyperparams`` folder. Some features are enable to monitor training and performance, explained next. Ideally, running this code should give you the performance mentioned below.
 
 **Verify reproducibility:** (i) 65/100 successful episodes on SAC policy evaluation, with (mean, std) = (-161.68, 86.39)
 
