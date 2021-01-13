@@ -29,9 +29,9 @@ Usage
 -------------
 ``python reproducibility.py --seed 42 --env Pendulum-v0 --algo sac -trl 1e5 -tb -check -eval -m -params learning_starts:1000``
 
-Here, I use a fixed random seed of 42 (the answer to life, universe and everything) to run the experiments. I choose the [Pendulum-v0](https://gym.openai.com/envs/Pendulum-v0/) environment and the Soft Actor-Critic ([SAC](https://arxiv.org/pdf/1801.01290.pdf)) algorithm to learn a model from the [reward](https://github.com/openai/gym/wiki/Pendulum-v0#reward). SAC is trained for 100,000 steps with the tuned hyperparameters from the ``hyperparams`` folder. Some features are enable to monitor training and performance, explained next. Ideally, running this code should give you the performance mentioned below.
+Here, I use a fixed random seed of 42 (the answer to life, universe and everything) to run the experiments. I choose the [Pendulum-v0](https://gym.openai.com/envs/Pendulum-v0/) environment and the Soft Actor-Critic ([SAC](https://arxiv.org/pdf/1801.01290.pdf)) algorithm to learn a model from the [reward](https://github.com/openai/gym/wiki/Pendulum-v0#reward). SAC is trained for 100,000 steps with the tuned hyperparameters from the ``hyperparams`` folder. Some features are enable to monitor training and performance, explained next. Ideally, running this code should give you the performance like so:
 
-**Verify reproducibility:** (i) 65/100 successful episodes on SAC policy evaluation, with (mean, std) = (-161.68, 86.39)
+**Verify reproducibility:** 65/100 successful episodes on SAC policy evaluation, with (mean, std) = (-161.68, 86.39)
 
 Features
 -------------
